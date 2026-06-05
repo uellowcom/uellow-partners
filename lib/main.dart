@@ -3,9 +3,12 @@
 // Sign in with the SAME Uellow customer account; the home is the partner
 // dashboard (board / products / orders / wallet).
 // =============================================================================
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'fcm_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
@@ -19,6 +22,7 @@ const kGreen = Color(0xFF1F8A40);
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await PartnersApi.instance.init();
+  unawaited(FcmService.instance.init());
   runApp(const PartnersApp());
 }
 

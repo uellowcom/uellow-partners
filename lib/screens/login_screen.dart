@@ -1,7 +1,10 @@
 // Premium sign-in / register for partners — same Uellow customer account.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../fcm_service.dart';
 import '../main.dart';
 import 'home_screen.dart';
 
@@ -37,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
             phone: _phone.text.trim());
       } else {
         await PartnersApi.instance.login(email, pass);
+      unawaited(FcmService.instance.register());
       }
       if (!mounted) return;
       Navigator.pushReplacement(context,
