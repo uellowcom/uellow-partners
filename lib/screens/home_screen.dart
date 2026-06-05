@@ -2,6 +2,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../api.dart';
@@ -125,8 +126,9 @@ class _HomeScreenState extends State<HomeScreen> {
           for (final (i, label, icon) in [
             (0, ar ? 'لوحتي' : 'Board', Icons.dashboard_outlined),
             (1, ar ? 'منتجاتي' : 'Products', Icons.sell_outlined),
-            (2, ar ? 'طلباتي' : 'Orders', Icons.receipt_long_outlined),
-            (3, ar ? 'محفظتي' : 'Wallet',
+            (2, ar ? 'مبيعاتي' : 'Sales', Icons.trending_up),
+            (3, ar ? 'طلباتي' : 'Orders', Icons.receipt_long_outlined),
+            (4, ar ? 'محفظتي' : 'Wallet',
                 Icons.account_balance_wallet_outlined),
           ]) Expanded(child: InkWell(
             onTap: () => setState(() => _tab = i),
@@ -149,8 +151,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       Expanded(child: switch (_tab) {
         1 => const ProductsTab(),
-        2 => OrdersTab(onChanged: _load),
-        3 => WalletTab(me: me, onChanged: _load),
+        2 => const SalesTab(),
+        3 => OrdersTab(onChanged: _load),
+        4 => WalletTab(me: me, onChanged: _load),
         _ => DashboardTab(me: me),
       }),
     ]);
@@ -228,6 +231,7 @@ class DashboardTab extends StatelessWidget {
     final next = (me['next_tier'] as Map?)?.cast<String, dynamic>();
     final link = ((me['links'] as Map?)?['short']
         ?? (me['links'] as Map?)?['web'] ?? '').toString();
+    final code = (me['code'] ?? '').toString();
     return ListView(padding: const EdgeInsets.all(14), children: [
       Container(
         padding: const EdgeInsets.all(16),
@@ -265,9 +269,39 @@ class DashboardTab extends StatelessWidget {
                   : 'Shop Uellow through my link 🛍️\n$link'),
               icon: const Icon(Icons.share, color: kGoldLight),
             ),
+            // v1.1.0 — QR of the referral link
+            IconButton(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(mainAxisSize: MainAxisSize.min,
+                        children: [
+                      QrImageView(data: link, size: 230,
+                          backgroundColor: Colors.white),
+                      const SizedBox(height: 8),
+                      Text(code, style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16,
+                          letterSpacing: 2, color: kDark)),
+                      Text(ar ? 'امسح الكود لفتح رابط إحالتك'
+                              : 'Scan to open your referral link',
+                          style: const TextStyle(fontSize: 11,
+                              color: Colors.grey)),
+                    ]),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.qr_code_2, color: kGoldLight),
+            ),
           ]),
         ]),
       ),
+      // v1.1.0 — active bonus campaigns banners
+      const CampaignsStrip(),
       const SizedBox(height: 12),
       Row(children: [
         _stat(ar ? 'متاح للسحب' : 'Available',
@@ -316,7 +350,13 @@ class DashboardTab extends StatelessWidget {
         ),
       ],
       const SizedBox(height: 14),
+      const EarningsChart(),
+      const SizedBox(height: 14),
       const LeaderboardCard(),
+      const SizedBox(height: 14),
+      const ActivityFeed(),
+      const SizedBox(height: 14),
+      const NewsList(),
     ]);
   }
 
@@ -822,5 +862,354 @@ class _WalletTabState extends State<WalletTab> {
         ]),
       ),
     ]);
+  }
+}
+
+// ═══ v1.1.0 — Affiliate 2.0 widgets ═══════════════════════════════════
+
+/// Active bonus campaigns — orange banners under the code card.
+class CampaignsStrip extends StatefulWidget {
+  const CampaignsStrip({super.key});
+  @override
+  State<CampaignsStrip> createState() => _CampaignsStripState();
+}
+
+class _CampaignsStripState extends State<CampaignsStrip> {
+  List<Map<String, dynamic>>? _items;
+  @override
+  void initState() {
+    super.initState();
+    PartnersApi.instance.campaigns().then((v) {
+      if (mounted) setState(() => _items = v);
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = PartnersApi.instance.lang == 'ar';
+    final items = _items ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(children: [
+      const SizedBox(height: 12),
+      for (final c in items) Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFFFF7A00), Color(0xFFFFB347)]),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(children: [
+          const Text('🔥', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 9),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${((c['name'] as Map?)?[ar ? 'ar' : 'en'] ?? '')} '
+                 '— +${c['boost_pct']}%',
+                style: const TextStyle(color: Colors.white,
+                    fontWeight: FontWeight.w900, fontSize: 13)),
+            if (((c['note'] as Map?)?[ar ? 'ar' : 'en'] ?? '')
+                .toString().isNotEmpty)
+              Text(((c['note'] as Map?)?[ar ? 'ar' : 'en'] ?? '')
+                  .toString(),
+                  style: const TextStyle(color: Colors.white70,
+                      fontSize: 11)),
+            if ((c['scope'] ?? '').toString().isNotEmpty)
+              Text((c['scope']).toString(),
+                  style: const TextStyle(color: Colors.white60,
+                      fontSize: 10)),
+          ])),
+          if (c['eligible'] == false)
+            Text(ar ? 'لمستوى أعلى' : 'Higher tier',
+                style: const TextStyle(color: Colors.white70,
+                    fontSize: 10, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+    ]);
+  }
+}
+
+/// 14-day earnings + clicks chart (pure widgets).
+class EarningsChart extends StatefulWidget {
+  const EarningsChart({super.key});
+  @override
+  State<EarningsChart> createState() => _EarningsChartState();
+}
+
+class _EarningsChartState extends State<EarningsChart> {
+  Map<String, dynamic>? _data;
+  @override
+  void initState() {
+    super.initState();
+    PartnersApi.instance.series().then((d) {
+      if (mounted) setState(() => _data = d);
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = PartnersApi.instance.lang == 'ar';
+    final d = _data;
+    if (d == null) return const SizedBox.shrink();
+    final earnings = List<Map<String, dynamic>>.from(
+        (d['earnings'] as List?) ?? const []);
+    final clicks = List<Map<String, dynamic>>.from(
+        (d['clicks'] as List?) ?? const []);
+    Widget chart(String title, List<Map<String, dynamic>> rows,
+        String key, Color color, {bool money = false}) {
+      final maxV = rows.fold<double>(1,
+          (m, x) => ((x[key] as num?) ?? 0) > m
+              ? ((x[key] as num?) ?? 0).toDouble() : m);
+      return Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(color: Colors.white,
+            borderRadius: BorderRadius.circular(14)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text(title, style: const TextStyle(fontSize: 12.5,
+              fontWeight: FontWeight.w900)),
+          const SizedBox(height: 10),
+          SizedBox(height: 86, child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end, children: [
+            for (final x in rows) Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end, children: [
+                if (((x[key] as num?) ?? 0) > 0)
+                  Text(money
+                      ? ((x[key] as num?) ?? 0).toStringAsFixed(1)
+                      : '${x[key]}',
+                      style: const TextStyle(fontSize: 7,
+                          fontWeight: FontWeight.w800)),
+                Container(
+                  height: 3 + 62 * (((x[key] as num?) ?? 0) / maxV),
+                  decoration: BoxDecoration(color: color,
+                      borderRadius: BorderRadius.circular(3)),
+                ),
+                const SizedBox(height: 2),
+                Text((x['date'] ?? '').toString().substring(8),
+                    style: const TextStyle(fontSize: 6.5,
+                        color: Colors.grey)),
+              ]),
+            )),
+          ])),
+        ]),
+      );
+    }
+    return Column(children: [
+      chart(ar ? '📈 أرباحك — آخر 14 يوماً' : '📈 Earnings — 14 days',
+          earnings, 'amount', kGreen, money: true),
+      const SizedBox(height: 8),
+      chart(ar ? '👆 نقرات رابطك — آخر 14 يوماً' : '👆 Clicks — 14 days',
+          clicks, 'clicks', kGold),
+    ]);
+  }
+}
+
+/// Recent activity feed.
+class ActivityFeed extends StatefulWidget {
+  const ActivityFeed({super.key});
+  @override
+  State<ActivityFeed> createState() => _ActivityFeedState();
+}
+
+class _ActivityFeedState extends State<ActivityFeed> {
+  List<Map<String, dynamic>>? _items;
+  @override
+  void initState() {
+    super.initState();
+    PartnersApi.instance.activity().then((v) {
+      if (mounted) setState(() => _items = v);
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = PartnersApi.instance.lang == 'ar';
+    final items = _items ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white,
+          borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+        Text(ar ? '🕘 آخر النشاطات' : '🕘 Recent activity',
+            style: const TextStyle(fontSize: 13,
+                fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        for (final e in items.take(8)) Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            Text((e['icon'] ?? '•').toString(),
+                style: const TextStyle(fontSize: 15)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+                ((e['text'] as Map?)?[ar ? 'ar' : 'en'] ?? '')
+                    .toString(),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5,
+                    fontWeight: FontWeight.w600))),
+            Text(((e['when'] ?? '') as String)
+                .split('T').first.substring(5),
+                style: const TextStyle(fontSize: 9.5,
+                    color: Colors.grey)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Partner news.
+class NewsList extends StatefulWidget {
+  const NewsList({super.key});
+  @override
+  State<NewsList> createState() => _NewsListState();
+}
+
+class _NewsListState extends State<NewsList> {
+  List<Map<String, dynamic>>? _items;
+  @override
+  void initState() {
+    super.initState();
+    PartnersApi.instance.news().then((v) {
+      if (mounted) setState(() => _items = v);
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = PartnersApi.instance.lang == 'ar';
+    final items = _items ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(ar ? '📣 أخبار الشركاء' : '📣 Partner news',
+            style: const TextStyle(fontSize: 13,
+                fontWeight: FontWeight.w900)),
+      ),
+      for (final n in items.take(5)) Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white,
+            borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text('${n['emoji'] ?? '📣'} '
+               '${((n['title'] as Map?)?[ar ? 'ar' : 'en'] ?? '')}',
+              style: const TextStyle(fontSize: 12.5,
+                  fontWeight: FontWeight.w900)),
+          if (((n['body'] as Map?)?[ar ? 'ar' : 'en'] ?? '')
+              .toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                  ((n['body'] as Map?)?[ar ? 'ar' : 'en'] ?? '')
+                      .toString(),
+                  style: const TextStyle(fontSize: 11.5,
+                      color: Colors.black54)),
+            ),
+        ]),
+      ),
+    ]);
+  }
+}
+
+/// مبيعاتي — attributed sales with state + commission per order.
+class SalesTab extends StatefulWidget {
+  const SalesTab({super.key});
+  @override
+  State<SalesTab> createState() => _SalesTabState();
+}
+
+class _SalesTabState extends State<SalesTab> {
+  List<Map<String, dynamic>>? _items;
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final v = await PartnersApi.instance.sales();
+      if (mounted) setState(() => _items = v);
+    } catch (_) {
+      if (mounted) setState(() => _items = const []);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ar = PartnersApi.instance.lang == 'ar';
+    final items = _items;
+    if (items == null) {
+      return const Center(child: CircularProgressIndicator(color: kDark));
+    }
+    if (items.isEmpty) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Text(
+            ar ? 'لا توجد مبيعات منسوبة لك بعد —\nشارك روابطك وستظهر هنا فور أول طلب'
+               : 'No attributed sales yet — share your links!',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey)),
+      ));
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
+        itemCount: items.length,
+        itemBuilder: (_, i) {
+          final x = items[i];
+          final state = (x['state'] ?? '').toString();
+          final (chipBg, chipFg, label) = switch (state) {
+            'confirmed' => (const Color(0xFFE6F7EF), kGreen,
+                ar ? '✅ مؤكدة' : '✅ Confirmed'),
+            'paid' => (const Color(0xFFEDF3FA), const Color(0xFF1D5FA6),
+                ar ? '💸 مدفوعة' : '💸 Paid'),
+            'cancelled' => (const Color(0xFFFDE8E8),
+                const Color(0xFFC0392B), ar ? '❌ ملغاة' : '❌ Cancelled'),
+            _ => (const Color(0xFFFFF3D6), const Color(0xFF8B6508),
+                ar ? '⏳ بانتظار التسليم' : '⏳ Pending delivery'),
+          };
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white,
+                borderRadius: BorderRadius.circular(13)),
+            child: Row(children: [
+              Text((x['source'] ?? '') == 'link' ? '🔗' : '📝',
+                  style: const TextStyle(fontSize: 17)),
+              const SizedBox(width: 9),
+              Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text((x['order'] ?? '').toString(),
+                    style: const TextStyle(fontWeight: FontWeight.w900,
+                        fontSize: 12.5)),
+                Text(((x['date'] ?? '') as String).split('T').first,
+                    style: const TextStyle(fontSize: 10,
+                        color: Colors.grey)),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                Text('+${(((x['commission'] as Map?)?['amount'] as num?) ?? 0).toStringAsFixed(3)}',
+                    style: const TextStyle(fontWeight: FontWeight.w900,
+                        fontSize: 13, color: kGreen)),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: chipBg,
+                      borderRadius: BorderRadius.circular(999)),
+                  child: Text(label, style: TextStyle(fontSize: 9,
+                      fontWeight: FontWeight.w900, color: chipFg)),
+                ),
+              ]),
+            ]),
+          );
+        },
+      ),
+    );
   }
 }

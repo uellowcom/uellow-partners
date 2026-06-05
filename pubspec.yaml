@@ -1,7 +1,7 @@
 name: uellow_partners
 description: Uellow Partners — affiliate / reseller companion app
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -13,6 +13,7 @@ dependencies:
   cached_network_image: ^3.3.1
   shared_preferences: ^2.2.2
   share_plus: ^10.0.2
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

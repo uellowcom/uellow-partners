@@ -169,6 +169,35 @@ class PartnersApi {
     });
   }
 
+  // v1.1.0 — affiliate 2.0 endpoints
+  Future<List<Map<String, dynamic>>> sales() async {
+    final res = await _get('/api/mobile/v2/affiliate/sales');
+    return List<Map<String, dynamic>>.from(
+        (res['data']?['sales'] as List?) ?? const []);
+  }
+
+  Future<List<Map<String, dynamic>>> campaigns() async {
+    final res = await _get('/api/mobile/v2/affiliate/campaigns');
+    return List<Map<String, dynamic>>.from(
+        (res['data']?['campaigns'] as List?) ?? const []);
+  }
+
+  Future<List<Map<String, dynamic>>> news() async {
+    final res = await _get('/api/mobile/v2/affiliate/news');
+    return List<Map<String, dynamic>>.from(
+        (res['data']?['news'] as List?) ?? const []);
+  }
+
+  Future<List<Map<String, dynamic>>> activity() async {
+    final res = await _get('/api/mobile/v2/affiliate/activity');
+    return List<Map<String, dynamic>>.from(
+        (res['data']?['events'] as List?) ?? const []);
+  }
+
+  Future<Map<String, dynamic>> series() async =>
+      ((await _get('/api/mobile/v2/affiliate/series'))['data'] as Map)
+          .cast<String, dynamic>();
+
   Future<Map<String, dynamic>> leaderboard() async =>
       ((await _get('/api/mobile/v2/affiliate/leaderboard'))['data'] as Map)
           .cast<String, dynamic>();
